@@ -1,0 +1,272 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><title></title></head><body><h3>Combining everything together</h3>
+
+<p>Open R using administrator privileges (i.e. in linux type <code>sudo R</code> from the terminal), and type:</p>
+
+<pre><code>install.packages(&quot;igraph&quot;, dependency=T)
+install.packages(&quot;tidyverse&quot;, dependency=T)
+install.packages(&quot;visNetwork&quot;, dependency=T)
+</code></pre>
+
+<p>The dataset comprises several proteins that can be or not be phosphorilated.</p>
+
+<p>The names of the proteins were validated and standardised using the HGNC database.</p>
+
+<p>The idea is to compare naive cells (node.csv file) with TH-17 cells (th17.csv).</p>
+
+<p>To do so, we will:</p>
+
+<ul>
+<li>reconstruct the two networks, one for the naive and one for the TH-17;</li>
+<li>import the data into Cytoscape;</li>
+<li>verify if the networks comprise a single, connected component;</li>
+<li>visualise the data using the Style Panel, colouring the proteins by the value of up or down regulation;</li>
+<li>analyse the network using NetworkAnalyzer, and highlight the more important nodes;</li>
+<li>search for clusters in both networks;</li>
+<li>search for similarity in the two networks;</li>
+</ul>
+
+<p>To construct the networks we have several options:</p>
+
+<ul>
+<li>using an <a href="https://string-db.org">on-line database</a>;</li>
+<li>download the StringApp for Cytoscape and browse the database from the software;</li>
+<li>load a <a href="http://dp.univr.it/%7Elaudanna/LCTST/styled-9/styled-30/downloads/index.html">known interactome</a> and map the proteins using Cytoscape.</li>
+</ul>
+
+<p>The file for importing the data is a .csv file that contains several columns, one for each attribute a node can have. These attributes can be numerical of categorical. Numerical data can be used to perform network analysis and extract centralities, short paths and other parameters. Categorical data are usually used to enrich a network and obtain biological information.</p>
+
+<p>To use any of the mentioned methodologies, we need a set of nodes. Get them using the terminal:</p>
+
+<p><code>sort -u &lt;(cat string_interactions.tsv | cut -f1 | tail -n +2) &lt;(cat string_interactions.tsv | cut -f2 | tail -n +2)</code></p>
+
+<p>Now get some interactions either using databases, or compiled set of interacions, i.e. interactomes, or both.</p>
+
+<p>Once we downloaded the necessary files (from STRING or an interactome), open Cytoscape and load the network(s).</p>
+
+<p>Do the networks contain a single, connected component? Let&#39;s check. If they don&#39;t, then no problem, if they do several options are available: </p>
+
+<ol>
+<li>discard the nodes that are disconnected;</li>
+<li>use a tool such as PeSca, or StrongestPath that search for shortest paths between nodes;</li>
+<li>Expand the network.</li>
+</ol>
+
+<p>Let&#39;s say we try to expand our network using STRING.</p>
+
+<p>After we are happy with the network, we can colour nodes using a continuous coloring. This kind of colouring allow us showing how continuous data, i.e. numerical continuous data, range between [min−max] and give us an idea of how the nodes are distributed according to the value of their attribute. Other options for colouring a network is said discrete and it is used when we have numerical or categorical data that define a class for our nodes.</p>
+
+<p>Using MCODE it is possible to search for clusters. A cluster, as we said, is a region of a network with a high number of interactions between the nodes. Do our network contains clusters?</p>
+
+<p>We can also use JActiveModules that is another algorithm that allow us in order to extract interesting clusters from our network. How does it work?</p>
+
+<p>Using the retrieved clusters we can perform an enrichment analysis. Enrichment is used when we want to associate biological information to our network. We can associate, for instance, the cellular location, the biological processes in which a protein is involved and the protein&#39;s molecular function.</p>
+
+<p>First, we get the list of nodes from the TH-17:</p>
+
+<pre><code>$ cut th17.csv -d&quot;,&quot; -f1 | tail -n +2
+</code></pre>
+
+<p>Another option to get the list is: open a file (either nodes.csv or th17.csv) as spreadsheets and copy the nodes names.</p>
+
+<p>Finally, we can extract information about the biological processes (or cellular component or molecular function) in which our proteins are involved.</p>
+
+<p>To perform the enrichment, we can use several methods. Using Cytoscape there are many apps, e.g. Reactome or Jepetto but there are many more.</p>
+
+<p>Now some code we can try using R:</p>
+
+<pre><code>#load some libraries
+library(&quot;tidyverse&quot;)
+library(&quot;igraph&quot;)
+library(&quot;visNetwork&quot;)
+
+#import data
+edgelist  &lt;- read.csv(&quot;edges.csv&quot;)
+nodes &lt;- read.csv(&quot;nodes.csv&quot;)
+
+#build the graph
+g &lt;- graph_from_data_frame(edgelist,directed=F,vertices=nodes)
+
+Now let&#39;s see what is inside a IGraph graph:
+
+#show the content
+V(g)
+
+## + 34/34 vertices, named, from 9408d11:
+##  [1] RB1      CDK2     CDKN1B   CDK4     PDPK1    RPS6KB1  PKN2     FOS     
+##  [9] ATF2     CDK1     TP53     MAP2K6   MAP2K3   PRKDC    LCK      STAT3   
+## [17] BCL2     PKN1     SRC      NPM1     NFKBIA   IGF1R    ABL1     RPS6KA5 
+## [25] EIF4EBP1 BMX      MAP2K1   CAMK2B   MAPT     CSNK1G2  CAMK4    HMOX2   
+## [33] PPM1A    HSPB1
+
+E(g)
+
+## + 73/73 edges from 9408d11 (vertex names):
+##  [1] RB1    --CDK2     CDK2   --CDKN1B   RB1    --CDK4     PDPK1  --RPS6KB1 
+##  [5] PDPK1  --PKN2     CDKN1B --CDK4     FOS    --ATF2     CDK2   --CDK1    
+##  [9] CDK2   --TP53     MAP2K6 --MAP2K3   TP53   --PRKDC    LCK    --STAT3   
+## [13] TP53   --BCL2     PDPK1  --PKN1     RB1    --CDK1     PDPK1  --SRC     
+## [17] TP53   --NPM1     STAT3  --SRC      LCK    --NFKBIA   SRC    --NFKBIA  
+## [21] FOS    --STAT3    SRC    --IGF1R    RB1    --ABL1     RPS6KA5--EIF4EBP1
+## [25] RB1    --ATF2     SRC    --ABL1     RB1    --TP53     SRC    --BMX     
+## [29] RPS6KB1--IGF1R    CDKN1B --ABL1     MAP2K6 --PKN1     MAP2K3 --PKN1    
+## [33] SRC    --MAP2K1   LCK    --MAP2K1   CDK1   --MAP2K1   CDK4   --CDK1    
+## [37] STAT3  --BCL2     PDPK1  --LCK      CDK2   --ABL1     RB1    --CDKN1B  
+## + ... omitted several edges
+</code></pre>
+
+<p>Then compute some centralities:</p>
+
+<pre><code>#compute few centralities
+V(g)$degree &lt;- degree(g)
+V(g)$betweenness &lt;- betweenness(g,directed=F,normalized=T)
+E(g)$betweenness &lt;- edge_betweenness(g,directed=F)
+
+#store nodes and edges information in two convenient dataframes
+v &lt;- as_data_frame(g, what=&quot;vertices&quot;)
+e &lt;- as_data_frame(g, what=&quot;edges&quot;)
+
+#sort by degree
+v %&gt;% arrange(desc(degree)) %&gt;% head
+
+##          name  stat   exp uniprotid degree betweenness
+## SRC       SRC  down  1.21    P12931     12  0.32461670
+## TP53     TP53    up  3.03    P04637     11  0.28295755
+## RB1       RB1 mixed  3.64    P06400      7  0.04942581
+## CDKN1B CDKN1B    up  4.24    P46527      7  0.06485089
+## PDPK1   PDPK1    up  3.03    O15530      7  0.10972222
+## CDK1     CDK1    up -2.42    P06493      7  0.05740139
+
+#sort by betweenness
+v %&gt;% arrange(desc(betweenness)) %&gt;% head
+
+##          name stat   exp uniprotid degree betweenness
+## SRC       SRC down  1.21    P12931     12   0.3246167
+## TP53     TP53   up  3.03    P04637     11   0.2829576
+## FOS       FOS down  2.42    P01100      6   0.1670455
+## CAMK2B CAMK2B   up  3.03    Q13554      5   0.1238185
+## PDPK1   PDPK1   up  3.03    O15530      7   0.1097222
+## STAT3   STAT3 down -2.42    P40763      7   0.1075637
+
+#sort by edge_betweenness
+e %&gt;% arrange(desc(betweenness)) %&gt;% head
+
+##     from     to betweenness
+## 1    SRC CAMK2B    76.12619
+## 2    FOS    SRC    64.75000
+## 3    FOS   TP53    44.50000
+## 4   TP53  STAT3    44.37857
+## 5 MAP2K3    SRC    40.38730
+## 6  STAT3    SRC    36.88095
+</code></pre>
+
+<p>Now, lets find out some other info about the networks. For instance the average path length and its transitivity:</p>
+
+<pre><code>#compute average path length
+apl &lt;- mean_distance(g,directed=F)
+
+#compute transitivity
+trans &lt;- transitivity(g)
+</code></pre>
+
+<p>Plus some other info about network motifs:</p>
+
+<pre><code>#retrieve triangles
+tri &lt;- max_cliques(g,min=3,max=3)
+
+#and visualize them
+V(g)$color  &lt;- ifelse(V(g)$stat == &quot;up&quot;, &quot;red&quot;, 
+           ifelse(V(g)$stat == &quot;down&quot;,&quot;blue&quot;,&quot;yellow&quot;))
+
+df1&lt;-lapply(tri,function(x){V(g)$name[x]})
+df2 &lt;- data.frame(matrix(unlist(df1),ncol=3,byrow=T))
+par(mfrow=c(3,4),mar=c(4,4,1,0.5))
+for(i in 1:length(df1)){
+subg &lt;- as.undirected(induced_subgraph(g,df1[[i]]))
+plot(subg, vertex.label.color=&quot;black&quot;, vertex.label.cex=0.9, vertex.size=20, 
+    vertex.color=V(subg)$color, vertex.label=V(subg)$name, 
+    vertex.label.dist=-6, edge.color=&quot;gray28&quot;, main= paste(&quot;Triad&quot;,i), 
+    layout=layout.circle(subg))
+}
+
+#retrieve substructures
+cliq &lt;- max_cliques(g)
+
+#largest cliques
+largest_clique &lt;- largest_cliques(g)
+
+#plot triads
+par(mfrow=c(1,2))
+for(i in 1:length(largest_clique)){
+subg &lt;- as.undirected(induced_subgraph(g,largest_clique[[i]]))
+plot(subg, vertex.label.color=&quot;black&quot;, vertex.label.cex=0.9, vertex.size=20, 
+    vertex.color=V(subg)$color, vertex.label=V(subg)$name, 
+    vertex.label.dist=-6, edge.color=&quot;gray28&quot;, main= paste(&quot;Largest clique&quot;,i), 
+    layout=layout.circle(subg))
+}
+</code></pre>
+
+<p>At this point it could be interesting to analyse the type of nodes inside the network, by means of Assortativity:</p>
+
+<pre><code>regvalues &lt;- as.numeric(factor(V(g)$stat))
+
+#compute assortativity
+assort &lt;- assortativity(g,regvalues)
+
+#compute degree assortativity
+deg_assort &lt;- assortativity.degree(g,directed=F)
+
+And, finally, generate some random networks to test the property of the original networks:
+
+# Generate 1000 random networks for average path length and transitivity.
+grandom &lt;- vector(&quot;list&quot;,1000)
+for (i in 1:1000){
+    grandom[[i]] &lt;- erdos.renyi.game(n=gorder(g), p.or.m=edge_density(g), type=&quot;gnp&quot;)
+}
+
+#compute average path length for 1000 random networks
+grandom_apls &lt;- unlist(lapply(grandom,mean_distance,directed=F))
+grandom_transitivity &lt;- unlist(lapply(grandom,transitivity))
+
+# Random Network for assortativity
+asstv_grandom &lt;- vector(&quot;list&quot;,1000)
+for(i in 1:1000){
+    asstv_grandom[[i]] &lt;- assortativity(g,sample(regvalues))
+}
+
+#par(mfrow=c(3,1))
+layout(matrix(c(1,1,2,2,
+            1,1,2,2,
+            0,3,3,0,
+            0,3,3,0), 4, 4, byrow = TRUE))
+
+# Average Path Length
+hist(grandom_apls)
+abline(v = apl, col=&quot;red&quot;, lty=3, lwd=2)
+
+# Transitivity
+hist(grandom_transitivity,xlim= range(c(0,0.35)))
+abline(v = trans, col=&quot;red&quot;, lty=3, lwd=2)
+
+asstv_grandom &lt;- unlist(asstv_grandom)
+
+# Assortativity
+hist(asstv_grandom)
+abline(v=assort,col=&quot;red&quot;,lty=3,lwd=2)
+
+fastgreed_com &lt;- fastgreedy.community(g)
+
+V(g)$communities &lt;- membership(fastgreed_com)
+
+set.seed(10)
+plot(fastgreed_com, g, vertex.size=8, vertex.label=NA, edge.color=&quot;gray18&quot;, 
+    edge.width=0.7, main= &quot;clustering by fast-greedy&quot;, 
+    layout=layout_nicely(g))
+
+data &lt;- toVisNetworkData(g)
+data$nodes$size &lt;- V(g)$degree * 3
+data$nodes$title &lt;- paste0(&quot;&lt;p&gt;&lt;b&gt;Site: &lt;/b&gt;&quot;, V(g)$site, &quot;&lt;/p&gt;&quot;)
+visNetwork(nodes=data$nodes, edges=data$edges, width=&quot;100%&quot;) %&gt;%
+visEdges(color=&quot;black&quot;) %&gt;% visIgraphLayout(layout=&quot;layout_with_kk&quot;) %&gt;% 
+visOptions(selectedBy= &quot;stat&quot;, highlightNearest=T, nodesIdSelection=T)       
+</code></pre>
+</body></html>

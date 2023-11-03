@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<style type="text/css">
+td, th { border: 1px solid #c3c3c3; padding: 0 3px 0 3px; }
+table { border-collapse: collapse; }
+img { max-width: 100%; }
+</style>
+<meta name="generator" content="ReText 7.1.0">
+<title>intro_to_networks</title>
+<style type="text/css">
+</style>
+</head>
+<body>
+<h2>Network analysis</h2>
+<h3>Excercise, what about it?</h3>
+<p>What if we want to add some other information to a network? Lets suppose that we need to add information about miRNAs interactions to our protein-protein interaction (PPI) network!</p>
+<p>First step: finding <a href="http://mirtarbase.cuhk.edu.cn/php/index.php">a source</a> for protein-miRNA interactions.</p>
+<p>What is a miRNA? What's its connection with proteins? Again, we can use a <a href="https://www.sciencedirect.com/topics/medicine-and-dentistry/microrna">very good source</a>.</p>
+<p>Now, from the miRTarBase, dowload the file that contains the interactions for the organism we are interested into, in this case Homo sapiens.</p>
+<p>The downloaded file will be an .xlsx which is not really useful. Excel exports files with a lot of formatting making it difficutl to extract info from this file using the command line.</p>
+<p>To get an idea of what formatting means:</p>
+<pre><code>cat hsa_MTI.xlsx
+</code></pre>
+
+<p>The output is a mess!</p>
+<p>To overcome this issue, we can open the file with Calc (or R, using a specific library) and export it in .csv format (which should be your favourite file format for storing any kind of data, except for those that are stored in databases).</p>
+<p>Hint 1: with R you will need a specific package which is called <a href="https://ycphs.github.io/openxlsx/articles/Introduction.html">openxlsx</a> and a function, i.e. <code>read.xlsx()</code>.</p>
+<pre><code>library(&quot;openxlsx&quot;)
+
+# read the xlsx file
+data &lt;- read.xlsx(xlsxFile=&quot;/home/gabriele/cbmc/teaching_and_writing/updated_material/constructingNetworks/hsa_MTI.xlsx&quot;, sheet=1, colNames=T)
+
+# and export it in csv
+write.table(data, &quot;mirna.csv&quot;, col.names=T, sep=&quot;\t&quot;, row.names=F, quote=F)
+</code></pre>
+
+<p>Hint 2: (Stackoverflow)[https://stackoverflow.com/] is a source of information any person, using a computer for getting the job done, must know!</p>
+<p>Now lets obtain the miRNA we are looking for:</p>
+<pre><code>grep -P &quot;TNF\t&quot; hsa_MTI.csv
+</code></pre>
+
+<p>This command provide us with a file containing the miRNA related to the TNF protein.</p>
+<pre><code>grep -P &quot;TNF\t&quot; hsa_MTI.csv | cut -f2,4 &gt; TNF_mirna.csv
+</code></pre>
+
+<p>Now we should do the same for all the proteins in our network (a <a href="http://swcarpentry.github.io/shell-novice/05-loop/index.html">for loop</a> or a <a href="https://fog.ccsf.edu/~gboyd/cs160b/online/7-loops2/whileread.html">while loop</a> may help?).</p>
+<pre><code>touch probe.txt
+# now, copy-paste the list of proteins into probe.txt, in upper-case. then:
+
+while read line;
+do
+
+    grep -P $line&quot;\t&quot; hsa_MTI.csv | cut -f2,4 &gt; $line&quot;_mirna.csv&quot;
+done &lt; probe.txt
+</code></pre>
+
+<p>I am grepping TNF\t with the tab symbol but...why???</p>
+<p>At this point several files were generated, some of them contains interactions, some other don't. Discard the empty ones <code>find . -type f -size 0 -exec rm {} \;</code>.</p>
+<p>Finally, we must generate a .sif file containing this new set of interactions side by side with the original network we created some steps ago!</p>
+<pre><code>cat *mirna.csv | sed 's/\t/\tpp\t/g' &gt; mirna_interactions.sif
+cat mirna_interactions.sif cytokines_network.sif &gt; mirna_cytokines.sif
+</code></pre>
+
+<h3>Intro</h3>
+<p>A <strong>graph</strong> is a pair G=(V, E) where V is the set of vertexes used to abstract different kinds of objects, and E is the set of edges describing the interactions between the objects in V.</p>
+<p>According to this definition we can use graphs to model any kind of interactions between different kinds of objects:</p>
+<ul>
+<li>social interactions;</li>
+<li>business interactions;</li>
+<li>disease spreading;</li>
+<li>ecosystems;</li>
+<li>protein-protein interactions;</li>
+<li>cell-cell interactions...</li>
+</ul>
+<p>The main problem involves the definition of a meaningful set of <em>interactions</em>. The question that needs to be addressed is: what are these interactions representing?</p>
+<h3>What can we do with networks?</h3>
+<p>Once the network is built, we can investigate it's mathematical properties in several ways. We can focus on the network:</p>
+<ul>
+<li>structure;</li>
+<li>shortest paths;</li>
+<li>vertexes neighbourhoods;</li>
+<li>composition;</li>
+<li>emergent properties (i.e. biological implications...)</li>
+</ul>
+<p>Load the example network with Cytoscape.</p>
+<p>Lets download CentiScaPe which is a Cytoscape app that will allow us computing three different centralities.</p>
+<p>Now, use these metrics to investigate the network, edges, and nodes properties.</p>
+<p>A structural property of the network may be represented by its diameter, i.e. the longest shortest path.</p>
+<p>The network composition measures the different kinds of objects that are described into the network itself, i.e. proteins, miRNAs, genes...</p>
+<p>Nodes properties, also called centralities, describe the role a node plays in the network. There are many and they are different.</p>
+<h3>Network centralities</h3>
+<p>Now, load the network.sif file in Cytoscape.</p>
+<p>Which node, in this network, seems to be the most important in terms of number of friends?</p>
+<ul>
+<li><strong>Degree</strong>: based on the number of neighbours a node has</li>
+</ul>
+<p>But, is this node the most important one, in terms of connecting other nodes?</p>
+<ul>
+<li><strong>Betweenness</strong>: based on number of shortest paths. It measures the ability of a node to be a connecting <a href="https://en.wikipedia.org/wiki/Betweenness_centrality">hub in the whole network</a></li>
+</ul>
+<p>Any of the nodes that we've seen above...can they be impotant in connecting dense regions of the network?</p>
+<ul>
+<li><strong>Bridging</strong>: based on number of shortes paths. It measures the ability of a node to connect <a href="ftp://ftp10.us.freebsd.org/pub/tech-reports/2006-05.pdf">dense regions of the network</a></li>
+</ul>
+<p>A node centrality may become a network property. How is this possible?</p>
+<p>The answer is by averaging it.</p>
+<p>So, for instance, we can compute the average Degree and assign it to the network, instead of a single node.</p>
+<p>But, why is this useful?</p>
+<h3>Networks models and network validation</h3>
+<p>Centralities may be used to describe family of networks such as for instance random networks, small world networks, scale-free networks depending on some, very specific mathematical properties.</p>
+<p>Lets try to construct three different random networks, using NetworkRandomizer:
+ - random network: Erdős-Rényi;
+ - small world network: Watts-Strogatz;
+ - scale-free network: Barabási-Albert.</p>
+<p>There are other centralities, such as Diameter, that are specifically designed to describe a whole network. Also, for instance, average path length</p>
+<h3>Networks reconstruction</h3>
+<p>Now, lets try to reconstruct a network using PeSca.</p>
+<p>Select few nodes (by clicking on them) and create a new network. There are two options:</p>
+<ul>
+<li>From Selected Nodes, All Edges;</li>
+<li>From Selected Nodes, Selected Edges.</li>
+</ul>
+<p>What is the difference between these two options?</p>
+<p>Can we reconstruct the original network using the nodes we selected? How? Are there any <a href="http://apps.cytoscape.org/apps/strongestpath">alternatives to PeSca</a>?</p>
+<h3>Networks visualisation</h3>
+<p>Using the mirna networks that was created, it is possible to generate an attribute file that will be loaded in Cytoscape to colour the nodes according to their class.</p>
+<p>To do so, open the sif file in R, as a csv, file:</p>
+<pre><code># read the file
+interactions &lt;- read.csv(&quot;mirna_cytokines.sif&quot;, header=F, sep=&quot;\t&quot;)
+head(interactions)
+
+# give a name to the columns
+colnames(interactions) &lt;- c(&quot;source&quot;, &quot;interaction&quot;, &quot;target&quot;)
+
+# get all the unique objects
+objs &lt;- unique(c(interactions$source, interactions$target))
+
+# locate mirnas and proteins
+typeOf &lt;- ifelse(grepl(&quot;miR|hsa&quot;, objs), &quot;mirna&quot;, &quot;protein&quot;)
+
+# finally export the attribute
+write.table(cbind.data.frame(objs, typeOf), &quot;attributes.csv&quot;, sep=&quot;\t&quot;, row.names=F, col.names=T, quote=F)
+</code></pre>
+
+<p>Now, load the network and the attributes in Cytoscape and color the nodes according to their type!</p>
+
+</body>
+</html>

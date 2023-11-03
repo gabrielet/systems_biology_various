@@ -1,0 +1,169 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><title></title></head><body><h4>Intro to single cell RNA-seq analysis with R</h4>
+
+<p>Analysing single cells RNA-seq data using R could be done in a lot of different ways.</p>
+
+<p><a href="http://bioconductor.org/books/release/OSCA/">This is the manual</a> I am using to perform single cell analysis, but other pipelines exists, i.e. <a href="https://satijalab.org/seurat/">Seurat</a> or <a href="https://stemangiola.github.io/bioceurope2020_tidytranscriptomics/">tidy-based</a>, too.</p>
+
+<p>As said, there are many libraries that interact with each other.</p>
+
+<p>Also, there are many different pipelines that may interact with each other.</p>
+
+<p>All of these approaches, however, share a common workflow that starts from the biological raw data and goes through an alignment, some normalisation, some dimensionality reduction, some clustering, some differentially expressed genes  (DEGs) retrieval and, finally, an enrichment step.</p>
+
+<p>It is important to note that there are many experimental technologies that allow you retrieving the raw data.</p>
+
+<p>Depending on the characteristics of these data and the pipeline the companies are using, i.e. 10x or BD Rhapsody, some steps may be necessary, useless, or harmful.</p>
+
+<p>Take home message, as always: know your data.</p>
+
+<p>Let&#39;s start by defining a single cell experiment as it is defined by the R <code>library(&quot;SingleCellExperiment&quot;)</code>.</p>
+
+<p>This class takes advantage of <a href="https://adv-r.hadley.nz/s4.html">S4</a> to define the singleCellExperiment object.</p>
+
+<h4>Creating a SingleCellExperiment</h4>
+
+<pre><code>library(&quot;SingleCellExperiment&quot;)
+library(&quot;scater&quot;)
+library(&quot;scran&quot;)
+library(&quot;gridExtra&quot;)
+library(&quot;celldex&quot;)
+
+# set seed
+set.seed(131)
+
+# set number of genes
+nG &lt;- 1500
+# and number of cells
+nC &lt;- 800
+
+# generate some raw counts
+counts &lt;- sample(0:10, (nG*nC), replace=T)
+
+# generate the count matrix
+cMat &lt;- matrix(counts, nrow=nG, ncol=nC)
+
+# assign gene names
+gNm &lt;- read.csv(&quot;/home/gabriele/geneNames.csv&quot;, header=F)
+rownames(cMat) &lt;- gNm$V1
+
+# assign cell names
+bgin &lt;- 1543
+colnames(cMat) &lt;- seq(bgin, (bgin+nC-1), by=1)
+
+# create the actual singleCellExperiment. 
+
+# NOTE: the matrix containing the counts must be an actual matrix
+scExp &lt;- SingleCellExperiment(assays = list(counts = cMat))
+
+# it is now possible to access the assay &quot;counts&quot; that is now part of the experiment
+assay(scExp, &quot;counts&quot;)
+
+# we can add further info to cells, i.e. their condition
+condition &lt;- data.frame(condition = sample(c(&quot;WT&quot;, &quot;Treated&quot;), nC, replace=T))
+scExp &lt;- SingleCellExperiment(assays = list(counts = cMat), colData = condition)
+
+# and to genes, i.e. label kinases
+isK &lt;- grep(&quot;MAPK&quot;, rownames(cMat))
+isKinase &lt;- data.frame(isKinase = rep(FALSE, nrow(cMat)))
+isKinase[isK, ] &lt;- TRUE
+
+# add biological information to the genes, i.e. rows
+rowData(scExp) &lt;- isKinase
+
+# and try to subset by cells
+scExp[, scExp$condition==&quot;WT&quot;]
+
+# and try to subset by genes
+scExp[rowData(scExp)$isKinase, ]
+
+</code></pre>
+
+<h4>Performing some quality-control</h4>
+
+<p>What we just created is a single cell experiment object with some data attached to it.</p>
+
+<p>We now perform some quality-control on the experiment we generated:</p>
+
+<pre><code># at this point perform some quality-control
+stats &lt;- perCellQCMetrics(scExp)
+
+qc &lt;- quickPerCellQC(stats)
+
+# and remove outliers, i.e. those cells that didn&#39;t meet the quality criteria
+scExp &lt;- scExp[, !qc$discard]
+
+# now, normalise the count assay using log-normalisation
+scExp &lt;- logNormCounts(scExp)
+
+# and perform a features selection, i.e. get highly variable genes
+dec &lt;- modelGeneVar(scExp)
+hvg &lt;- getTopHVGs(dec, prop=0.1)
+
+# to observe the data, a dimensionality reduction is needed using PCA and UMAP
+scExp &lt;- runPCA(scExp, ncomponents=2, subset_row=hvg)
+scExp &lt;- runUMAP(scExp, dimred = &#39;PCA&#39;, external_neighbors=TRUE)
+
+# plot tSNE by condition
+plotReducedDim(scExp, dimred=&quot;UMAP&quot;, colour_by=&quot;condition&quot;)
+
+# and an arbitrary seed
+set.seed(131)
+ks &lt;- 2
+clustKM &lt;- kmeans(reducedDim(scExp, &quot;PCA&quot;), centers=ks)
+colLabels(scExp) &lt;- factor(clustKM$cluster)
+scExp$clusterS &lt;- factor(clustKM$cluster)
+
+# a summary of clusters content
+tbl &lt;- table(clustKM$cluster, kmeansSce$fine_to_main)
+
+# plot by cluster
+# plotting tSNE using cluster colours and cell label colours, side by side
+grid.arrange(
+    plotUMAP(scExp, colour_by=&quot;clusterS&quot;, text_by=&quot;clusterS&quot;) + theme(legend.position=&quot;none&quot;) + labs(title=&quot;By cluster&quot;),
+    plotReducedDim(scExp, &quot;UMAP&quot;, colour_by=&quot;condition&quot;) + theme(legend.position=&quot;right&quot;) + labs(title=&quot;By treatment&quot;) + guides(color=guide_legend(&quot;Cell type&quot;)) ,
+    ncol=2)
+</code></pre>
+
+<h4>Labelling cells using SingleR and ImmGen</h4>
+
+<p>At this point, let&#39;s try to trick ImmGen to provide us some cell labelling</p>
+
+<pre><code># load immgen database  
+immgen &lt;- ImmGenData()
+
+# store the info into the scExp
+scExp$immpred_main &lt;- SingleR(test=scExp, ref=immgen, labels=immgen$label.main)
+scExp$immpred_fine &lt;- SingleR(test=scExp, ref=immgen, labels=immgen$label.fine)
+
+# let&#39;s have a look at our dataset cell type composition
+
+table(scExp$immpred_main$first.labels)
+
+</code></pre>
+
+<h4>Retrieving differentially expressed genes (DEGs)</h4>
+
+<p>Now, try to retrieve some differentially expressed genes from Fibroblasts:</p>
+
+<pre><code>cType &lt;- &quot;Fibroblast&quot;
+
+# find the cells
+cTPos &lt;- grep(cType, scExp$immpred_main$first.labels)
+
+# now let&#39;s see to which cluster(s) these cells belong to
+table(scExp$clusterS[cTPos])
+
+# at this point, subset the original scExp to cType only
+subSet &lt;- scExp[, cTPos]
+
+markersG &lt;- findMarkers(subSet, groups=subSet$condition, pval.type=&quot;any&quot;, direction=&quot;any&quot;)
+</code></pre>
+
+<p>Since the dataset is totally made-up, no results are expected here. Unfortunately.</p>
+
+<p>However, the idea is that we should be able to retrieve some differentially expressed genes.</p>
+
+<p>At this point, we may end up with a table contaning some up or down regulated genes.</p>
+
+<p>Up-regulated genes means that the gene is more expressed in one condition with respect to the other. So, if we compare <strong>treated</strong> versus <strong>wildType</strong>, an up-regulated genes is more expressed in the <strong>treated</strong> samples. In contrast, a down-regulated gene is more expressed in the <strong>wildType</strong> condition.</p>
+</body></html>

@@ -1,0 +1,195 @@
+<!doctype html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<style type="text/css">
+td, th { border: 1px solid #c3c3c3; padding: 0 3px 0 3px; }
+table { border-collapse: collapse; }
+img { max-width: 100%; }
+</style>
+<meta name="generator" content="ReText 7.1.0">
+<title>clustering</title>
+<style type="text/css">
+</style>
+</head>
+<body>
+<h2>A gentle introduction to Machine Learning</h2>
+<p>Before starting we need to install few packages:</p>
+<pre><code>install.packages(&quot;ggplot2&quot;)
+install.packages(&quot;gmodels&quot;)
+install.packages(&quot;class&quot;)
+</code></pre>
+
+<p>Constructing networks from neuropathology data is quite simple. Let's make an example using R.</p>
+<pre><code>library(&quot;igraph&quot;)
+
+# import data
+edgelist  &lt;- read.csv(&quot;edges.csv&quot;)
+nodes &lt;- read.csv(&quot;nodes.csv&quot;)
+
+# build the graph
+gD &lt;- graph_from_data_frame(edgelist,directed=F,vertices=nodes)
+
+# changing the nodes name for visualisation purposes
+V(gD)$name &lt;- seq(1, length(V(gD)), by=1)
+
+# set seed for reproducibility
+set.seed(131)
+
+V(gD)$x &lt;- sample(seq(1, 100, by=1), length(V(gD)), replace=T)
+V(gD)$y &lt;- sample(seq(1, 100, by=1), length(V(gD)), replace=T)
+
+# and plot it
+dev.new()
+plot.igraph(gD, vertex.label=V(gD)$name, layout=layout_nicely, rescale=F, xlim=c(0, 100), ylim=c(0, 100), vertex.size=600)
+
+
+# let's have a look at node 34 x and y
+
+print(paste0(&quot;node 34 (x, y): (&quot;, V(gD)$x[34], &quot;, &quot;, V(gD)$y[34], &quot;)&quot;))
+
+# and modify it, using two values we chose
+
+V(gD)$x[34] &lt;- 61
+V(gD)$y[34] &lt;- 14
+
+# and plot
+dev.new()
+plot.igraph(gD, vertex.label=V(gD)$name, layout=layout_nicely, rescale=F, xlim=c(0, 100), ylim=c(0, 100), vertex.size=600)
+</code></pre>
+
+<p>At this point we must imagine that, using this approach to network reconstruction we can build any kind of networks with nodes scattered in bi or tridimensional space.</p>
+<p>These networks may be investigated using the same methods we already mentioned throughout the practical lessons, i.e. clusters, cliques, degree, betweenness, average path length, etc...</p>
+<p>Of course, when you have many many samples (or networks), and you need to compare sets of healthy-whatever-samples versus sets of treated-whatever-samples, what you need is a computational approach to find things called <strong>patterns</strong>. This is a turning point that will require the use of advanced techniques that fall in the fields of patter recognition (or machine learning or, even fancier, artificial intelligence).</p>
+<p>To exploit these methodologies, you need to be able to provide some <strong>features</strong> to the algorithm. Features are measures that describe the caracteristics of the objects you want to work with. For instance, we may want to discriminate between images of cities, countryside, and sea. A feature that may help us performing such task is the number of pixel that are green, grey and blue. These are three features that can be measured, by actually counting the pixels, for each image:</p>
+<pre><code>img_n = c(nOfgreens, nOfgrays, nOfblues)
+</code></pre>
+
+<p>With a full table of images, each one with its counting an algorithm well trained should be able to determine which is the landscape in a new image.</p>
+<p>DISCLAIMER: I took the idea from <a href="https://www.datacamp.com/community/tutorials/machine-learning-in-r">here</a> with some modifications!</p>
+<p>Let's defining few functions:</p>
+<pre><code>#define a function to normalise the data
+normalising &lt;- function(dataSet) {
+    normalised &lt;- data.frame(matrix(nrow=dim(dataSet)[1], ncol=dim(dataSet)[2]))
+    colnames(normalised) &lt;- colnames(dataSet)
+    for (cls in 1:dim(dataSet)[2]) {
+        normalised[, cls] &lt;- (iris[, cls] - min(iris[, cls]))/(max(iris[, cls])-min(iris[, cls]))
+    }
+    return(normalised)
+}
+
+#importing required libraries
+library(ggplot2)
+library(gmodels)
+library(class)
+</code></pre>
+
+<p>We do not need to load a dataset, since we are using one that is already in your R installation the iris dataset</p>
+<pre><code>#let's have a look at our data
+head(iris)
+
+#header
+colnames(iris)
+
+#the dimension of our dataset!
+dim(iris)
+
+#compute the mean of Sepal lengths...it works!
+mean(iris$Sepal.Length)
+</code></pre>
+
+<p>Visualising our data by <a href="https://www.r-bloggers.com/2015/03/how-to-make-a-histogram-with-ggplot2/">plotting histograms</a></p>
+<pre><code>#open a new window
+dev.new()
+
+#create an histogram representing Petal lengths
+simple &lt;- qplot(iris$Petal.Length, geom = &quot;histogram&quot;, binwidth=0.05, xlab = &quot;Petal Length&quot;, ylab = &quot;Occurrences&quot;, main = &quot;Petals Lengths of Iris&quot;, fill = I(&quot;coral&quot;), col = I(&quot;darkblue&quot;), bins=15) + theme(plot.title = element_text(hjust = 0.5))
+
+#and plot it!
+plot(simple)
+</code></pre>
+
+<p>Something a bit fancier:</p>
+<pre><code>#open a new window
+dev.new()
+
+#create an improved histogram representing Sepal lengths by Species
+sHst &lt;- ggplot(data = iris) + geom_histogram(aes(x = Sepal.Length), bins = 15, colour = &quot;darkblue&quot;, fill = &quot;coral&quot;, binwidth = 0.05) + facet_wrap(~Species) + labs(title = &quot;Sepal Histogram&quot;, colour = &quot;Species&quot;, x = &quot;Sepal Length&quot;, y = &quot;Occurrences&quot;) + theme(plot.title = element_text(hjust = 0.5))
+
+plot(sHst)
+</code></pre>
+
+<p>And then, a scatterplot:</p>
+<pre><code>#open a new window
+dev.new()
+
+#create a scatter plot representing the variables we will use
+sScp &lt;- ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width, color = Species)) + geom_point() + labs(title = &quot;Sepals Characterisitcs Scatter plot&quot;, colour = &quot;Species&quot;, x = &quot;Sepal Length&quot; , y = &quot;Sepal Width&quot;) + theme(plot.title = element_text(hjust = 0.5))
+
+plot(sScp)
+</code></pre>
+
+<p>Doing the same for Petals!</p>
+<pre><code>#open a new window
+dev.new()
+
+#create a scatter plot representing the variables we will use
+pScp &lt;- ggplot(iris, aes(x = Petal.Length, y = Petal.Width, color = Species)) + geom_point() + labs(title = &quot;Petals Characterisitcs Scatter plot&quot;, colour = &quot;Species&quot;, x = &quot;Petal Length&quot;, y = &quot;Petal Width&quot;) + theme(plot.title = element_text(hjust = 0.5))
+
+plot(pScp)
+</code></pre>
+
+<p>Data normalisation and training and test sets generation</p>
+<pre><code>#normalising the dataset, only those column that refer to Sepal and Petal width and length
+irisNormalised &lt;- normalising(iris[1:4])
+
+#set seed, so that we sample always the same set: reproducibility!
+set.seed(13)
+
+#generate a random array that will be used
+indexes &lt;- sample(2, nrow(iris), replace=TRUE, prob=c(0.67, 0.33))
+
+#to sample the training
+training &lt;- irisNormalised[indexes==1, ]
+
+#and get their category
+trainLabels &lt;- iris[indexes==1, 5]
+
+#and the test sets
+test &lt;- irisNormalised[indexes==2, ]
+
+#and get their category
+testLabels &lt;- iris[indexes==2, 5]
+</code></pre>
+
+<p>The function we are using is a simple classifier called <a href="https://stat.ethz.ch/R-manual/R-devel/library/class/html/knn.html">K-nearest neighbours</a>.</p>
+<pre><code>#build the classifier over the test set!
+predLabels &lt;- knn(train = training, test = test, cl = trainLabels, k=3)
+
+#find out the matches between test and predicted
+#initialise a vector for storing the matches
+isMatch &lt;- vector()
+
+#then find them!
+for (i in 1:length(testLabels)) {
+    if (testLabels[i] == predLabels[i]) {
+        isMatch[i] &lt;- &quot;T&quot;
+    }
+    else{
+        isMatch[i] &lt;- &quot;FALSE&quot;
+    }
+}
+
+#create a table to compare test and predicted
+comparison &lt;- data.frame(testLabels, predLabels, isMatch)
+</code></pre>
+
+<p>Now lets take a look at it the table we just created:</p>
+<pre><code>print(comparison)
+
+#eventually we can try something better
+CrossTable(x = testLabels, y = predLabels, prop.chisq=FALSE)
+</code></pre>
+
+</body>
+</html>

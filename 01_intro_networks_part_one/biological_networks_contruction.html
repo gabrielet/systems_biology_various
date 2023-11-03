@@ -1,0 +1,276 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><title></title></head><body><h2>Biological Networks Construction</h2>
+
+<h3>Collecting information about the dataset</h3>
+
+<p>The dataset we are using is called with a very fancy name: <em>dataset.csv</em>. It contains information about <em>cytokines</em>.</p>
+
+<p>First, important thing is to build an understanding of the biological context in which we are working. If we are not aware of the context, how the experiments were carried and which is the question to address, the analysis can not be interpreted.</p>
+
+<p>Lets look at some info.</p>
+
+<p>What are NCBI and PubMed?</p>
+
+<p>Another very useful source of literature is <a href="https://scholar.google.com/">google scholar</a>.</p>
+
+<p>On the one hand google or duckduckgo, i.e. two common search engines, are not the best choice when looking for scientific papers while, on the other hand, they are very good for books, lessons, and suggestion (see SE, for example)</p>
+
+<h3>Loading the data</h3>
+
+<p>Now, that we read the paper from the NCBI and we know what cytokines are, we can open the dataset with Calc or Excel (or, even better, with <a href="https://www.r-project.org/">R</a>). Calc is part of LibreOffice and it&#39;s a good idea to get a <a href="https://www.openoffice.org/">free copy</a> of it).</p>
+
+<p>A <em>.csv</em> is a text file containing columns that are usually, but not always, separated by a comma. The comma is said field separator. Try to open this file using the , as field separator, using Calc or Excel. In both cases, the software doesn&#39;t show the data as expected!</p>
+
+<p>When we are dealing with this kind of file, i.e. .csv, we must know in advance which symbol was used as field separator. In particular, when we open the file with a tool like R, it does not show us the content of the object we are importing (i.e. R does not show us a table like Calc or Excel does: the table is stored in a variable!)</p>
+
+<p>Lets try R with the correct field separator, i.e. the tab ***:</p>
+
+<pre><code>data &lt;- read.csv(&quot;dataset.csv&quot;, sep=&quot;\t&quot;, header=T);
+colnames(data);
+
+## [1] &quot;Group&quot;         &quot;Sample&quot;        &quot;Assay&quot;         &quot;Signal&quot;       
+## [5] &quot;Mean&quot;          &quot;STDEV&quot;         &quot;CV&quot;            &quot;Concentration&quot;
+</code></pre>
+
+<p>Now, lets try to sum up two values from the column Concentration:</p>
+
+<pre><code>data$Concentration[1] + data$Concentration[2];
+
+## Warning in Ops.factor(data$Concentration[1], data$Concentration[2]): &#39;+&#39; not
+## meaningful for factors
+
+## [1] NA
+
+data$Concentration[1];
+
+## [1] 9,79141622510377
+## 77 Levels: 0 0,003191827920406 0,007148014828249 ... 9,79141622510377
+</code></pre>
+
+<p>Is there something wrong?</p>
+
+<p>Yes! Data are not in a standard format! In this specific case, the decimal part of a number is not delimited by the dot, i.e. .. As we are used to in Italy, someone gave us a file where the floating values are separated by a comma, instead of a dot, as R and the international standard, is expecting. Hence, R is considering our numbers as strings and, obviously, R cannot perform a sum between strings!</p>
+
+<p>So&hellip;what should we do?</p>
+
+<p>Well, we can open the file with a text editor (e.g. gedit, geany, notepad++) and substitute the comma with the dot.</p>
+
+<p>Be careful though, since opening raw data file with a text editor is not always a good idea. The file may be &gt; 1GB and a not-so-modern computer may get stuck while trying to open the file. Luckily, faster and specifically designed alternatives do actually exist:</p>
+
+<p>We can use a unix tool (recently available for Windows too) the shell.</p>
+
+<p>Lets try this command, from the command line, i.e. the shell or terminal:</p>
+
+<pre><code>sed &quot;s/,/./g&quot; dataset.csv &gt; dataset_correct.csv
+</code></pre>
+
+<p>This line of code generates a new file called dataset_correct.csv containing dots instead of the commas.</p>
+
+<p>Even better, next time, to create a file that does not contain commas separating the decimal part of a number.</p>
+
+<p>Now, we can go back to R:</p>
+
+<pre><code>data_new &lt;- read.csv(&quot;dataset_correct.csv&quot;, sep=&quot;\t&quot;, header=T);
+data_new$Concentration[1] + data_new$Concentration[2];
+
+## [1] 18.89522
+</code></pre>
+
+<p>to finally import our dataset.</p>
+
+<h3>Building a network</h3>
+
+<p>The dataset will be used to construct a network using the proteins.</p>
+
+<p>What we need is:</p>
+
+<ul>
+<li>a list of proteins;</li>
+<li>an <em>interactome</em> or a database of known interactions.</li>
+</ul>
+
+<p>How does an interactome look like? Reach prof. Laudanna <a href="http://dp.univr.it/%7Elaudanna/LCTST/styled-9/styled-30/downloads/index.html">networks collection</a>.</p>
+
+<p>and open the Human_interactome.sif file!</p>
+
+<p>It is a textual file containing three columns: protein, pp, protein.</p>
+
+<p><strong>pp</strong> stands for the interaction between the protein in the first column and the protein in the second column (in particular, in this case, pp means Protein-Protein). We can use any kind of interaction (e.g. even the sentence my favourite kind of interaction can be used). Cytoscape does not care about the name of the interaction. It only needs three columns separated by the same symbol, e.g. comma, tab, dot, etc&hellip;</p>
+
+<p>The kind of interactions is important to us since we are constructing and analysing the network. There are different kinds of biological networks and for each kind of network we have different kinds of interactions: gene co-expression networks, protein-protein interaction networks, metabolic networks are three examples. Clearly, a different interaction has a different biological meaning that affects the model we are building and the data interpretation.</p>
+
+<p>We can also find a website which allows us obtaining data from well known interactomes.</p>
+
+<p>Now, let focus on our data: which information do we have? Protein names are usable? Can we find these names in an interactome: press <code>Ctrl+F</code> (or <code>command+F</code> for mac-users), and search for <strong>interferon gamma</strong>? Can you find it?</p>
+
+<h3>Issues</h3>
+
+<p>The answer is NO. We have a problem with protein names. A protein can have 10 different (yet similar) names and synonyms but, in order to find it in a standardised dataset, we need a standard nomenclature. How to get the names?</p>
+
+<p>We can use HGNC.</p>
+
+<p>Luckily HGNC offers a tool, i.e. Multi Symbol Checker, that allow us retrieving a list of standard names. Simply insert the names of some proteins, one for each row and run the service! Hopefully (but not in this case) HGNC will be able to retrieve our names. We can then download a table containing the retrieved information in order to have the protein names list, in a format that should be standard.</p>
+
+<p>These are the names of our proteins:</p>
+
+<pre><code>il8
+il6
+tnf
+il2
+il4
+il13
+il1b
+il12b
+il10
+ifn
+</code></pre>
+
+<p>If we need biological information about our proteins we can search for them using <a href="https://www.uniprot.org/">Uniprot</a> or <a href="http://geneontology.org/">GeneOntology</a>.</p>
+
+<p>GO is used by several Cytoscape App, e.g. ClueGO or Jepetto, in order to enrich a network using biological information, e.g. annotations, but this is not the only app that does this kind of service.</p>
+
+<p>Also you can do enrichment analysis using online services like, for instance, <a href="http://pantherdb.org/">Panther</a>. The idea is that the algorithm look for terms that are over-represented in a set of user-specified genes, or proteins, in order to extract biologically relevant information.</p>
+
+<p>If, as in our dataset, the proteins are not extracted from <em>Homo sapiens</em>, we can&#39;t build a network using a human interactome. Here we have two options: we can discard these proteins and lose information or we can investigate the biology behind these proteins.</p>
+
+<p>We can find out if they are similar enough to the human version of the protein. One of our non-human proteins comes from mouse (<em>Mus musculus</em>), while the other from chimpanzee (<em>Pan troglodytes</em>). Lets look for some info in HGNC, Uniprot of GO.</p>
+
+<p>In HGNC we can find this word homologous that can be helpful!</p>
+
+<p>If we want to evaluate the similarity between two proteins we can use an alignment algorithm like BLAST.</p>
+
+<p>BLAST requires a FASTA sequence in order to work. A link from the HGNC page of a protein will open a Uniprot page. Here we can find the FASTA sequence. Using BLAST we can evaluate its similarity with other proteins. All our proteins are fine: we can go on! Databases store huge quantity of information, you only need to know which database is the one you need and where to find the info you&#39;re looking for!</p>
+
+<p>To retrieve interactions we can use, as mentioned, an interacome, or an on-line database. Some databases: STRING, Dip, HPRD, Mint, Pathway commons, BioGrid: there are plenty!</p>
+
+<p>These databases contain different kinds of networks and interactions. As we said we can find gene networks, metabolic networks, protein networks. We need to know our sources!</p>
+
+<p>Importantly, the interactions we retrieved have different level of reliability and there are different methodologies that allow us to collect interactions</p>
+
+<p>So&hellip;which interactions are good enough for our network? Lets use STRING. Here we search for TNF interactions. The organism we are using is Homo sapiens.</p>
+
+<p>As we can see, the network has different kinds of edges, i.e. different colours. We can select which interactions we want to see in the network. From Settings we look for active interaction sources</p>
+
+<p>We can also analyse their reliability. From meaning of network edges} select confidence* instead of evidence. Edges have different thickness depending on their score!</p>
+
+<p>Now, from the search page of STRING, select Multiple proteins and, as input, we can paste our proteins:</p>
+
+<pre><code>il8
+il6
+tnf
+il2
+il4
+il13
+il1b
+il12b
+il10
+ifn
+</code></pre>
+
+<p>Download the file in tabular format: Strings gives us a .tsv file, which is the same as a .csv, but with a different extension name (it actually tells us that the separator is Tab instead of Comma (tsv stands for <strong>tab</strong> separated values)). This file, i.e. string_interactions.tsv will be used later!</p>
+
+<p>Using STRING we can also get whole interactomes: from the Download section, select an organism like <a href="https://en.wikipedia.org/wiki/Abiotrophia">Abiotrophia defectiva</a>.</p>
+
+<p>Download the text file and open it!</p>
+
+<p>It contains three columns (as a .sif file, apparently). The first and the second refer to two proteins: the interaction. The third one, in this kind of file, is a score that tells us how good the interaction is, from all the evidences STRING was able to collect. These values are percentages multiplied by 1000: so, for instance, 400 stands for 0.4.</p>
+
+<p>Which threshold define a reliable interaction? It strongly depends on our needs: on the one hand, if we want a high level of precision, i.e. we want reliable interactions, it is better to consider a high threshold like 0.75. On the other hand, if we want a high level of recall, i.e. we want a lot of interactions, we should go for lower thresholds like 0.40−0.60.</p>
+
+<p>The point here is that I should know what I&#39;m doing and which interactions I am using for my network. Of course for poorly studied organisms, retrieving interactions will be painful and maybe, not even possible.</p>
+
+<p>If you do not know, or (as I do) you can&#39;t remember it, the meaning of precision and recall&hellip;bookmark <a href="https://en.wikipedia.org/wiki/Precision_and_recall">this page</a>.</p>
+
+<p>Now lets look at the interactions we just downloaded (be careful it&#39;s a compressed file. We need to extract it before the analysis), with our bash:</p>
+
+<pre><code>sort -u &lt;(head -n 11 592010.protein.links.v11.0.txt | tail -n10 | cut -d&quot; &quot; -f1) &lt;(head -n 11 592010.protein.links.v11.0.txt |  tail -n10 | cut -d&quot; &quot; -f2)
+</code></pre>
+
+<p>This line of code provide us with a list of proteins:</p>
+
+<pre><code>592010.GCWU000182_000001
+592010.GCWU000182_000015
+592010.GCWU000182_000022
+592010.GCWU000182_000331
+592010.GCWU000182_000392
+592010.GCWU000182_000911
+592010.GCWU000182_000941
+592010.GCWU000182_001069
+592010.GCWU000182_001086
+592010.GCWU000182_001726
+592010.GCWU000182_001837
+</code></pre>
+
+<p>Lets search for them using STRING!</p>
+
+<p>Is the retrieved network connected? NO, some edges are missing which means that some node are not interacting with each others. Remember that the line of code we just ran is showing us a set of interactions that seem to not be present in the network STRING retrieved. How is this possible?</p>
+
+<p>Lets look at the data, again:</p>
+
+<pre><code>head -n 11 592010.protein.links.v11.0.txt | tail -n+2
+</code></pre>
+
+<p>Now, focus on the score: as you can see only three values are above the 0.4</p>
+
+<p>confidence threshold! Now lets look at STRING. In Settings you can see how the Minimum required interaction score is set at 400! That is why our network is not a network, yet! Lets lower the threshold and update the results! Now we are able to get a connected network, and it contains the interactions we selected through the command line!</p>
+
+<p>Now lets go back to our network: we need the file string_interactions.tsv.</p>
+
+<p>Try this:</p>
+
+<pre><code>cut -f1,2 string_interactions.tsv | sed &quot;s#\t#\tpp\t#g&quot; | tail -n+2 &gt; cytokines_network.sif
+</code></pre>
+
+<p>Why does the sed command contains an #?</p>
+
+<p>Each row of the file we just created, represent an interaction! We can open this file using Cytoscape, or by using R and IGraph and finally we build our network:</p>
+
+<pre><code>library(&quot;igraph&quot;);
+#load an external library with a function
+source(&quot;cytoFunctions.R&quot;)
+cNet &lt;- loadSif(&quot;cytokines_network.sif&quot;)
+</code></pre>
+
+<p>And, finally, visualise our network!</p>
+
+<pre><code>plot.igraph(cNet)
+</code></pre>
+
+<h3>Excercise</h3>
+
+<p>What if we want to add some other information to a network? Lets suppose that we need to add information about miRNAs interactions to our protein-protein interaction (PPI) network!</p>
+
+<p>First step: finding <a href="http://mirtarbase.cuhk.edu.cn/php/index.php">a source</a> for protein-miRNA interactions.</p>
+
+<p>What is a miRNA? What&#39;s its connection with proteins? Again, we can use a <a href="https://www.sciencedirect.com/topics/medicine-and-dentistry/microrna">very good source</a>.</p>
+
+<p>Now, from the miRTarBase, dowload the file that contains the interactions for the organism we are interested into, in this case Homo sapiens.</p>
+
+<p>The downloaded file will be an .xlsx which is not really useful. Excel exports files with a lot of formatting making it difficutl to extract info from this file using the command line.</p>
+
+<p>To get an idea of what formatting means:</p>
+
+<pre><code>cat hsa_MTI.xlsx
+</code></pre>
+
+<p>The output is a mess!</p>
+
+<p>To overcome this issue, we can open the file with Calc (or R, using a specific library) and export it in .csv format (which should be your favourite file format for storing any kind of data, except for those that are stored in databases).</p>
+
+<p>Hint 1: with R you will need a specific package which is called <a href="https://ycphs.github.io/openxlsx/articles/Introduction.html">openxlsx</a> and a function, i.e. <code>read.xlsx()</code>.</p>
+
+<p>Hint 2: (Stackoverflow)[<a href="https://stackoverflow.com/">https://stackoverflow.com/</a>] is a source of information any person, using a computer for getting the job done, must know!</p>
+
+<p>Now lets obtain the miRNA we are looking for:</p>
+
+<pre><code>grep -P &quot;TNF\t&quot; hsa_MTI.csv
+</code></pre>
+
+<p>This command provide us with a file containing the miRNA related to the TNF protein.</p>
+
+<pre><code>grep -P &quot;TNF\t&quot; hsa_MTI.csv | cut -f2,4 &gt; TNF_mirna.csv
+</code></pre>
+
+<p>Now we should do the same for all the proteins in our network (a <a href="http://swcarpentry.github.io/shell-novice/05-loop/index.html">for loop</a> or a <a href="https://fog.ccsf.edu/%7Egboyd/cs160b/online/7-loops2/whileread.html">while loop</a> may help?).</p>
+
+<p>Finally, we must generate a .sif file containing this new set of interactions side by side with the original network we created some steps ago!</p>
+</body></html>
